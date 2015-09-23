@@ -3,6 +3,7 @@ import socket
 import urllib
 import json
 import string
+import traceback
 
 ######################################
 #                                    #
@@ -10,9 +11,10 @@ import string
 #                                    #
 ######################################
 host = "cave.smatso.dk"
-port = 57005
-player_login = "mikkel_aarskort"
-player_pass = "123"
+#host = "localhost"
+port = 37123
+player_login = "20052356"
+player_pass = "621985792"
 
 ######################################
 #                                    #
@@ -61,6 +63,29 @@ def test_response(response, reply, tail):
             
     print(" *** HURRAY *** ")
 
+def test_error_response(response, code, message):
+    try:
+        res = json.loads(response)
+            
+        error_code = res['error-code']
+        if not code in error_code:
+            print("Error in the error code, the returned data was: ", response)
+            raise TestError('Test failed')
+
+        error_message = res['error-message']
+        if not message.upper() in error_message.upper():
+            print("Unexpected error message: ", error_message)
+            print("Expected to contain: ", message)
+            print("Complete json is: ", response)
+            raise TestError('Test failed')
+
+    except:
+        print(traceback.format_exc())
+        raise TestError("Test failed")
+            
+    print(" *** HURRAY *** ")
+
+    
 def sock_handle(fun):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((host, port))
@@ -114,7 +139,7 @@ def test_login(client_socket):
     client_socket.send(req)
 
     response = client_socket.recv(4096)
-    test_response(response, "LOGIN_SUCCESS", ["user-001", "Mikkel"])
+    test_response(response, "LOGIN_SUCCESS", ["55e45169e4b067dd3c8fa56e", "rohdef"])
     res = json.loads(response)
     set_user_details(res['reply-tail'])
     
@@ -198,4 +223,76 @@ sock_handle(test_player_get_short_description)
 sock_handle(test_player_get_long_description)
 sock_handle(test_player_get_exit_set)
 sock_handle(test_player_move)
+sock_handle(test_logout)
+
+######################################
+#                                    #
+# CRASH THIS BABY                    #
+#                                    #
+######################################
+def test_improper_line_ending(client_socket):
+    print("Trying to send improper line eding")
+    req = method_template.format("player-execute", "HomeCommand", lstr("nothing"), player_id, player_session)[:-1]
+    client_socket.send(req)
+
+def test_two_commands_improper_line_ending(client_socket):
+    print("Trying to send two commands with improper line eding")
+    req = method_template.format("player-execute", "HomeCommand", lstr("nothing"), player_id, player_session)[:-1]
+    client_socket.send(req+req)
+
+    #response = client_socket.recv(4096)
+ 
+
+def test_two_commands_first_has_improper_line_ending(client_socket):
+    print("Trying to send two commands first with improper line eding")
+    req = method_template.format("player-execute", "HomeCommand", lstr("nothing"), player_id, player_session)
+    client_socket.send(req[:-1]+req)
+
+    response = client_socket.recv(4096)
+    test_error_response(response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
+
+def test_two_commands(client_socket):
+    print("Trying to send two commands first with improper line eding")
+    req = method_template.format("player-execute", "HomeCommand", lstr("nothing"), player_id, player_session)
+    client_socket.send(req+req)
+
+    response = client_socket.recv(4096)
+    test_response(response, "(0,0,0)", [])
+    #    test_error_response(response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
+
+def test_malicious_data(client_socket):
+    print("Sending null")
+    try:
+        client_socket.send(None)
+    except:
+        pass # Ignore the error, damage has been done!
+
+def test_empty_string(client_socket):
+    print("Sending empty string")
+    client_socket.send("")
+
+def test_non_json(client_socket):
+    print("Sending non-json")
+    client_socket.send("My tooth, my tooth, I think I lost my tooth\n")
+
+    response = client_socket.recv(4096)
+    test_error_response(response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
+
+def test_garbage_json(client_socket):
+    print("Sending wrong json")
+    client_socket.send("{\"foo\": \"bar\"}\n")
+
+    response = client_socket.recv(4096)
+    test_error_response(response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
+    
+reset_server()
+sock_handle(test_login)
+sock_handle(test_improper_line_ending)
+sock_handle(test_two_commands_improper_line_ending)
+sock_handle(test_two_commands_first_has_improper_line_ending)
+sock_handle(test_two_commands)
+sock_handle(test_malicious_data)
+sock_handle(test_empty_string)
+sock_handle(test_non_json)
+sock_handle(test_garbage_json)
 sock_handle(test_logout)
