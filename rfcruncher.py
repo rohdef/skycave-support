@@ -12,7 +12,6 @@ import logging
 #                                    #
 ######################################
 host = "cave.smatso.dk"
-#host = "localhost"
 port = 37123
 player_login = "20052356"
 player_pass = "621985792"
@@ -127,7 +126,7 @@ class NicePeter():
         self.logger.info("Nice Peter initialized")
         
     def test_login(self, client_socket):
-#        self.logger.info("Logging in")
+        self.logger.info("Logging in")
         req = get_method_template("cave-login", player_login, lstr(player_pass))
         client_socket.send(req)
 
@@ -138,7 +137,7 @@ class NicePeter():
     
 
     def test_logout(self, client_socket):
-#        self.logger.info("Logging out")
+        self.logger.info("Logging out")
         req = get_method_template("cave-logout", "", lstr())
         client_socket.send(req)
 
@@ -146,7 +145,7 @@ class NicePeter():
         test_response(self.logger, response, "SUCCESS", [])
 
     def test_homecommand(self, client_socket):
-#        self.logger.info("Testing home command")
+        self.logger.info("Testing home command")
         req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))
         client_socket.send(req)
 
@@ -154,7 +153,7 @@ class NicePeter():
         test_response(self.logger, response, "(0,0,0)", [])
 
     def test_player_get_region(self, client_socket):
-#        self.logger.info("Testin get region")
+        self.logger.info("Testin get region")
         req = get_method_template("player-get-region", "", lstr())
         client_socket.send(req)
 
@@ -162,7 +161,7 @@ class NicePeter():
         test_response(self.logger, response, "ARHUS", [])
 
     def test_player_get_position(self, client_socket):
-#        self.logger.info("Testing get position")
+        self.logger.info("Testing get position")
         req = get_method_template("player-get-position", "", lstr())
         client_socket.send(req)
 
@@ -170,7 +169,7 @@ class NicePeter():
         test_response(self.logger, response, "(0,0,0)", [])
 
     def test_player_get_short_description(self, client_socket):
-#        self.logger.info("Testing get short room description")
+        self.logger.info("Testing get short room description")
         req = get_method_template("player-get-short-room-description", "", lstr())
         client_socket.send(req)
 
@@ -178,7 +177,7 @@ class NicePeter():
         test_response(self.logger, response, "You are standing at the end of a road before a small brick building.", [])
 
     def test_player_get_long_description(self, client_socket):
-#        self.logger.info("Testing get long room description")
+        self.logger.info("Testing get long room description")
         req = get_method_template("player-get-long-room-description", "", lstr())
         client_socket.send(req)
 
@@ -186,7 +185,7 @@ class NicePeter():
         test_response(self.logger, response, "You are standing at the end of a road before a small brick building.\nThere are exits in directions:\n  NORTH   EAST   WEST   UP \nYou see other players:\n  [0]", [])
 
     def test_player_get_exit_set(self, client_socket):
-#        self.logger.info("Testing get exit set")
+        self.logger.info("Testing get exit set")
         req = get_method_template("player-get-exit-set", "", lstr())
         client_socket.send(req)
 
@@ -194,7 +193,7 @@ class NicePeter():
         test_response(self.logger, response, "notused", ["NORTH", "EAST", "WEST", "UP"])
 
     def test_player_move(self, client_socket):
-#        self.logger.info("Testing player move")
+        self.logger.info("Testing player move")
         req = get_method_template("player-move", "DOWN", lstr())
         client_socket.send(req)
 
@@ -214,17 +213,17 @@ class CrashBaby():
         self.logger.info("Crash Baby active")
         
     def test_improper_line_ending(self, client_socket):
-       # self.logger.info("Trying to send improper line eding")
-        req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))[:-1]
-        client_socket.send(req)
+        self.logger.info("Trying to send improper line eding")
+        req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))
+        client_socket.send(req)[:-1]
 
     def test_two_commands_improper_line_ending(self, client_socket):
-      #  self.logger.info("Trying to send two commands with improper line eding")
+        self.logger.info("Trying to send two commands with improper line eding")
         req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))[:-1]
         client_socket.send(req+req)
 
     def test_two_commands_first_has_improper_line_ending(self, client_socket):
-     #   self.logger.info("Trying to send two commands first with improper line eding")
+        self.logger.info("Trying to send two commands first with improper line eding")
         req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))
         client_socket.send(req[:-1]+req)
 
@@ -232,7 +231,7 @@ class CrashBaby():
         test_error_response(self.logger, response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
 
     def test_two_commands(self, client_socket):
-    #    self.logger.info("Trying to send two commands first with improper line eding")
+        self.logger.info("Trying to send two commands first with improper line eding")
         req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))
         client_socket.send(req+req)
 
@@ -240,25 +239,25 @@ class CrashBaby():
         test_response(self.logger, response, "(0,0,0)", [])
 
     def test_malicious_data(self, client_socket):
-   #     self.logger.info("Sending null")
+        self.logger.info("Sending null")
         try:
             client_socket.send(None)
         except:
             pass # Ignore the error, damage has been done!
 
     def test_empty_string(self, client_socket):
-#       self.logger.info("Sending empty string")
+       self.logger.info("Sending empty string")
         client_socket.send(b"")
 
     def test_non_json(self, client_socket):
-#        self.logger.info("Sending non-json")
+        self.logger.info("Sending non-json")
         client_socket.send(b"My tooth, my tooth, I think I lost my tooth\n")
 
         response = client_socket.recv(4096)
         test_error_response(self.logger, response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
 
     def test_garbage_json(self, client_socket):
-#        self.logger.info("Sending wrong json")
+        self.logger.info("Sending wrong json")
         client_socket.send(b"{\"foo\": \"bar\"}\n")
 
         response = client_socket.recv(4096)
@@ -270,6 +269,45 @@ class CrashBaby():
 # EXECUTION                          #
 #                                    #
 ######################################
+class RabbitSocket():
+    def __init__(self):
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=host))
+        self.channel = connection.channel()
+
+        result = channel.queue_declare()
+        self.callback_queue = result.method.queue
+        self.channel.basic_consume(self.on_response,
+                                   no_ack=True,
+                                   queue=self.callback_queue)
+
+        self.response = None
+        self.corr_id = None
+
+    def on_response(self, ch, method, props, body):
+        if self.corr_id == props.correlation_id:
+            self.response = body
+
+    def send(bytes):
+        self.response = None
+        self.corr_id = str(uuid.uuid4())
+        
+        self.channel.basic_publish(exchange='',
+                                   routing_key='rpc_queue',
+                                   properties=pika.BasicProperties(
+                                       reply_to=self.callback_queue,
+                                       correlation_id = self.corr_id
+                                   ),
+                                   body=bytes.encode("UTF-8"))
+        pass
+
+    def recv(ignore_this):
+        while self.response == None:
+            self.connection.process_data_events()
+        return self.response
+
+    def close(self):
+        self.connection.close()
+
 class TestSuite:
     def __init__(self, handler, useRabbit=False):
         self.handler = handler
@@ -305,8 +343,8 @@ class TestSuite:
         client_socket.close()
     
     def rabbit_handle(self, test):
-        
-        pass
+        client_socket = RabbitSocket()
+        test(client_socket)
 
     def reset_server(self):
         def conn(client_socket):
