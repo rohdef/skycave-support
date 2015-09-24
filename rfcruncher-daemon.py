@@ -42,7 +42,7 @@ class Daemon():
 logger = logging.getLogger("rf_cruncher_daemon")
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler = logging.FileHandler("rfcruncher.log") #"/var/log/rfcruncher.log")
+handler = logging.FileHandler("/var/log/rfcruncher.log")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 

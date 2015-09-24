@@ -11,7 +11,7 @@ class CruncherMonster():
         statsUrl = "http://users-cs.au.dk/baerbak/c/cloud/current-score-operations-socket.txt"
 
         try:
-            with open("lastDiffFile", "r+") as lastDiffFile:
+            with open("/opt/lastDiffFile", "r+") as lastDiffFile:
                 fileContents = lastDiffFile.read()
                 fileContentsList = fileContents.split("\n")
                 del fileContents
