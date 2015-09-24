@@ -4,6 +4,7 @@ import urllib
 import json
 import string
 import traceback
+import logging
 
 ######################################
 #                                    #
@@ -33,58 +34,62 @@ class TestError(Exception):
     def __str__(self):
         return repr(self.value)
 
-def test_response(response, reply, tail):
+def test_response(logger, response, reply, tail):
     try:
-        print(response)
-        res = json.loads(response)
+        res = json.loads(response.decode("utf-8"))
         reply_tail = []
         if 'reply-tail' in res:
             reply_tail = res['reply-tail']
             
         error_code = res['error-code']
         if error_code != "OK":
-            print("Error in the response, the returned data was: ", response)
+            logger.error("Error in validating error code in the response")
+            logger.error("Expected the error code: OK")
+            logger.error("Actual error code was: %s", error_code)
+            logger.error("The complete output was: %s", response)
             raise TestError('Test failed')
 
-        error_message = res['error-message']
         json_reply = res['reply']
         if not reply in json_reply:
-            print("Unexpected response in the reply field: ", json_reply)
-            print("Complete json is: ", response)
+            logger.error("Error in validating the reply part of the response")
+            logger.error("Expected the reply to contain: %s", reply)
+            logger.error("The actual reply was: %s", json_reply)
+            logger.error("The complete output was: %s", response)
             raise TestError('Test failed')
 
         for x in tail:
             if x not in reply_tail:
-                print("Unexpected reply tail recieved, could not find the item: ", x)
-                print("The tail received was: ", reply_tail)
+                logger.error("Error in validating the tail part part of the response")
+                logger.error("Expected the tail to contain: %s", x)
+                logger.error("The tail was: %s", str(reply_tail))
+                logger.error("The complete output was: %s", response)
                 raise TestError('Test failed')
     except:
         raise TestError("Test failed")
-            
-    print(" *** HURRAY *** ")
 
-def test_error_response(response, code, message):
+def test_error_response(logger, response, code, message):
     try:
-        res = json.loads(response)
+        res = json.loads(response.decode("utf-8"))
             
         error_code = res['error-code']
         if not code in error_code:
-            print("Error in the error code, the returned data was: ", response)
+            logger.error("Error in the expected error code")
+            logger.error("Expected code was: %s", code)
+            logger.error("Actual code was: %s", error_code)
+            logger.error("Complete response %s", response)
             raise TestError('Test failed')
 
         error_message = res['error-message']
         if not message.upper() in error_message.upper():
-            print("Unexpected error message: ", error_message)
-            print("Expected to contain: ", message)
-            print("Complete json is: ", response)
+            logger.error("Unexpected error message in the error response")
+            logger.error("Expected to contain: %s", message)
+            logger.error("Actual message was: %s", error_message)
+            logger.error("Complete json is: %s", response)
             raise TestError('Test failed')
 
     except:
-        print(traceback.format_exc())
+        logging.exception("Error during error response handling")
         raise TestError("Test failed")
-            
-    print(" *** HURRAY *** ")
-
     
 def sock_handle(fun):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -106,21 +111,23 @@ def reset_user_details():
     player_id = "ignore-player-id"
     player_name = None
     player_session = "ignore-session-id"
+
+def get_method_template(method, param, tail):
+    req = method_template.format(method, param, tail, player_id, player_session)
+    return bytes(req, "UTF-8")
     
 def reset_server():
-    print("Resetting server")
-
     def conn(client_socket):
-        req = method_template.format("cave-login", player_login, lstr(player_pass), player_id, player_session)
+        req = get_method_template("cave-login", player_login, lstr(player_pass))
 
         client_socket.send(req)
         response = client_socket.recv(4096)
-        res = json.loads(response)
+        res = json.loads(response.decode("utf-8"))
         set_user_details(res['reply-tail'])
     sock_handle(conn)
         
     def dis_conn(client_socket):
-        req = method_template.format("cave-logout", "", lstr(), player_id, player_session)
+        req = get_method_template("cave-logout", "", lstr())
 
         client_socket.send(req)
         response = client_socket.recv(4096)
@@ -132,167 +139,191 @@ def reset_server():
 # TESTS                              #
 #                                    #
 ######################################
+class NicePeter():
+    def __init__(self, handler):
+        self.logger = logging.getLogger("Nice Peter")
+        self.logger.setLevel(logging.INFO)
+        self.logger.addHandler(handler)
+        
+    def test_login(self, client_socket):
+        self.logger.info("Logging in")
+        req = get_method_template("cave-login", player_login, lstr(player_pass))
+        client_socket.send(req)
+
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "LOGIN_SUCCESS", ["55e45169e4b067dd3c8fa56e", "rohdef"])
+        res = json.loads(response.decode("utf-8"))
+        set_user_details(res['reply-tail'])
     
-def test_login(client_socket):
-    print("Logging in")
-    req = method_template.format("cave-login", player_login, lstr(player_pass), player_id, player_session)
-    client_socket.send(req)
 
-    response = client_socket.recv(4096)
-    test_response(response, "LOGIN_SUCCESS", ["55e45169e4b067dd3c8fa56e", "rohdef"])
-    res = json.loads(response)
-    set_user_details(res['reply-tail'])
-    
+    def test_logout(self, client_socket):
+        self.logger.info("Logging out")
+        req = get_method_template("cave-logout", "", lstr())
+        client_socket.send(req)
 
-def test_logout(client_socket):
-    print("Logging out")
-    req = method_template.format("cave-logout", "", lstr(), player_id, player_session)
-    client_socket.send(req)
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "SUCCESS", [])
 
-    response = client_socket.recv(4096)
-    test_response(response, "SUCCESS", [])
+    def test_homecommand(self, client_socket):
+        self.logger.info("Testing home command")
+        req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))
+        client_socket.send(req)
 
-def test_homecommand(client_socket):
-    print("Testing home command")
-    req = method_template.format("player-execute", "HomeCommand", lstr("nothing"), player_id, player_session)
-    client_socket.send(req)
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "(0,0,0)", [])
 
-    response = client_socket.recv(4096)
-    test_response(response, "(0,0,0)", [])
+    def test_player_get_region(self, client_socket):
+        self.logger.info("Testin get region")
+        req = get_method_template("player-get-region", "", lstr())
+        client_socket.send(req)
 
-def test_player_get_region(client_socket):
-    print("Testin get region")
-    req = method_template.format("player-get-region", "", lstr(), player_id, player_session)
-    client_socket.send(req)
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "ARHUS", [])
 
-    response = client_socket.recv(4096)
-    test_response(response, "ARHUS", [])
+    def test_player_get_position(self, client_socket):
+        self.logger.info("Testing get position")
+        req = get_method_template("player-get-position", "", lstr())
+        client_socket.send(req)
 
-def test_player_get_position(client_socket):
-    print("Testing get position")
-    req = method_template.format("player-get-position", "", lstr(), player_id, player_session)
-    client_socket.send(req)
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "(0,0,0)", [])
 
-    response = client_socket.recv(4096)
-    test_response(response, "(0,0,0)", [])
+    def test_player_get_short_description(self, client_socket):
+        self.logger.info("Testing get short room description")
+        req = get_method_template("player-get-short-room-description", "", lstr())
+        client_socket.send(req)
 
-def test_player_get_short_description(client_socket):
-    print("Testing get short room description")
-    req = method_template.format("player-get-short-room-description", "", lstr(), player_id, player_session)
-    client_socket.send(req)
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "You are standing at the end of a road before a small brick building.", [])
 
-    response = client_socket.recv(4096)
-    test_response(response, "You are standing at the end of a road before a small brick building.", [])
+    def test_player_get_long_description(self, client_socket):
+        self.logger.info("Testing get long room description")
+        req = get_method_template("player-get-long-room-description", "", lstr())
+        client_socket.send(req)
 
-def test_player_get_long_description(client_socket):
-    print("Testing get long room description")
-    req = method_template.format("player-get-long-room-description", "", lstr(), player_id, player_session)
-    client_socket.send(req)
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "You are standing at the end of a road before a small brick building.\nThere are exits in directions:\n  NORTH   EAST   WEST   UP \nYou see other players:\n  [0]", [])
 
-    response = client_socket.recv(4096)
-    test_response(response, "You are standing at the end of a road before a small brick building.\nThere are exits in directions:\n  NORTH   EAST   WEST   UP \nYou see other players:\n  [0]", [])
+    def test_player_get_exit_set(self, client_socket):
+        self.logger.info("Testing get exit set")
+        req = get_method_template("player-get-exit-set", "", lstr())
+        client_socket.send(req)
 
-def test_player_get_exit_set(client_socket):
-    print("Testing get exit set")
-    req = method_template.format("player-get-exit-set", "", lstr(), player_id, player_session)
-    client_socket.send(req)
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "notused", ["NORTH", "EAST", "WEST", "UP"])
 
-    response = client_socket.recv(4096)
-    test_response(response, "notused", ["NORTH", "EAST", "WEST", "UP"])
+    def test_player_move(self, client_socket):
+        self.logger.info("Testing player move")
+        req = get_method_template("player-move", "DOWN", lstr())
+        client_socket.send(req)
 
-def test_player_move(client_socket):
-    print("Testing player move")
-    req = method_template.format("player-move", "DOWN", lstr(), player_id, player_session)
-    client_socket.send(req)
-
-    response = client_socket.recv(4096)
-    test_response(response, "false", [])
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "false", [])
     
 ######################################
 #                                    #
 # EXECUTION                          #
 #                                    #
 ######################################
+
+def execute_friendly_crunch(handler):
+    nice_peter = NicePeter(handler)
     
-reset_server()
-sock_handle(test_login)
-sock_handle(test_homecommand)
-sock_handle(test_player_get_region)
-sock_handle(test_player_get_position)
-sock_handle(test_player_get_short_description)
-sock_handle(test_player_get_long_description)
-sock_handle(test_player_get_exit_set)
-sock_handle(test_player_move)
-sock_handle(test_logout)
+    reset_server()
+    sock_handle(nice_peter.test_login)
+    sock_handle(nice_peter.test_homecommand)
+    sock_handle(nice_peter.test_player_get_region)
+    sock_handle(nice_peter.test_player_get_position)
+    sock_handle(nice_peter.test_player_get_short_description)
+    sock_handle(nice_peter.test_player_get_long_description)
+    sock_handle(nice_peter.test_player_get_exit_set)
+    sock_handle(nice_peter.test_player_move)
+    sock_handle(nice_peter.test_logout)
 
 ######################################
 #                                    #
 # CRASH THIS BABY                    #
 #                                    #
 ######################################
-def test_improper_line_ending(client_socket):
-    print("Trying to send improper line eding")
-    req = method_template.format("player-execute", "HomeCommand", lstr("nothing"), player_id, player_session)[:-1]
-    client_socket.send(req)
+class CrashBaby():
+    def __init__(self, handler):
+        self.logger = logging.getLogger("Crash Baby")
+        self.logger.setLevel(logging.INFO)
+        self.logger.addHandler(handler)
+        
+    def test_improper_line_ending(self, client_socket):
+        self.logger.info("Trying to send improper line eding")
+        req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))[:-1]
+        client_socket.send(req)
 
-def test_two_commands_improper_line_ending(client_socket):
-    print("Trying to send two commands with improper line eding")
-    req = method_template.format("player-execute", "HomeCommand", lstr("nothing"), player_id, player_session)[:-1]
-    client_socket.send(req+req)
+    def test_two_commands_improper_line_ending(self, client_socket):
+        self.logger.info("Trying to send two commands with improper line eding")
+        req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))[:-1]
+        client_socket.send(req+req)
 
-    #response = client_socket.recv(4096)
- 
+    def test_two_commands_first_has_improper_line_ending(self, client_socket):
+        self.logger.info("Trying to send two commands first with improper line eding")
+        req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))
+        client_socket.send(req[:-1]+req)
 
-def test_two_commands_first_has_improper_line_ending(client_socket):
-    print("Trying to send two commands first with improper line eding")
-    req = method_template.format("player-execute", "HomeCommand", lstr("nothing"), player_id, player_session)
-    client_socket.send(req[:-1]+req)
+        response = client_socket.recv(4096)
+        test_error_response(self.logger, response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
 
-    response = client_socket.recv(4096)
-    test_error_response(response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
+    def test_two_commands(self, client_socket):
+        self.logger.info("Trying to send two commands first with improper line eding")
+        req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))
+        client_socket.send(req+req)
 
-def test_two_commands(client_socket):
-    print("Trying to send two commands first with improper line eding")
-    req = method_template.format("player-execute", "HomeCommand", lstr("nothing"), player_id, player_session)
-    client_socket.send(req+req)
+        response = client_socket.recv(4096)
+        test_response(self.logger, response, "(0,0,0)", [])
 
-    response = client_socket.recv(4096)
-    test_response(response, "(0,0,0)", [])
-    #    test_error_response(response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
+    def test_malicious_data(self, client_socket):
+        self.logger.info("Sending null")
+        try:
+            client_socket.send(None)
+        except:
+            pass # Ignore the error, damage has been done!
 
-def test_malicious_data(client_socket):
-    print("Sending null")
-    try:
-        client_socket.send(None)
-    except:
-        pass # Ignore the error, damage has been done!
+    def test_empty_string(self, client_socket):
+        self.logger.info("Sending empty string")
+        client_socket.send(b"")
 
-def test_empty_string(client_socket):
-    print("Sending empty string")
-    client_socket.send("")
+    def test_non_json(self, client_socket):
+        self.logger.info("Sending non-json")
+        client_socket.send(b"My tooth, my tooth, I think I lost my tooth\n")
 
-def test_non_json(client_socket):
-    print("Sending non-json")
-    client_socket.send("My tooth, my tooth, I think I lost my tooth\n")
+        response = client_socket.recv(4096)
+        test_error_response(self.logger, response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
 
-    response = client_socket.recv(4096)
-    test_error_response(response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
+    def test_garbage_json(self, client_socket):
+        self.logger.info("Sending wrong json")
+        client_socket.send(b"{\"foo\": \"bar\"}\n")
 
-def test_garbage_json(client_socket):
-    print("Sending wrong json")
-    client_socket.send("{\"foo\": \"bar\"}\n")
+        response = client_socket.recv(4096)
+        test_error_response(self.logger, response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
 
-    response = client_socket.recv(4096)
-    test_error_response(response, "GENERAL_SERVER_FAILURE", "JSON Parse error")
+def execute_nasty_crunch(handler):
+    nice_peter = NicePeter(handler)
+    crashBaby = CrashBaby(handler)
     
-reset_server()
-sock_handle(test_login)
-sock_handle(test_improper_line_ending)
-sock_handle(test_two_commands_improper_line_ending)
-sock_handle(test_two_commands_first_has_improper_line_ending)
-sock_handle(test_two_commands)
-sock_handle(test_malicious_data)
-sock_handle(test_empty_string)
-sock_handle(test_non_json)
-sock_handle(test_garbage_json)
-sock_handle(test_logout)
+    reset_server()
+    sock_handle(nice_peter.test_login)
+
+    sock_handle(crashBaby.test_improper_line_ending)
+    sock_handle(crashBaby.test_two_commands_improper_line_ending)
+    sock_handle(crashBaby.test_two_commands_first_has_improper_line_ending)
+    sock_handle(crashBaby.test_two_commands)
+    sock_handle(crashBaby.test_malicious_data)
+    sock_handle(crashBaby.test_empty_string)
+    sock_handle(crashBaby.test_non_json)
+    sock_handle(crashBaby.test_garbage_json)
+
+    sock_handle(nice_peter.test_logout)
+
+if __name__ == "__main__":
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    handler = logging.FileHandler("rfcruncher.log")
+    handler.setFormatter(formatter)
+
+    execute_friendly_crunch(handler)
+    execute_nasty_crunch(handler)

@@ -1,28 +1,14 @@
 * Testing
 + [X] Login
-     [java] --> Received {"method":"cave-login","parameter":"reserved_aarskort","parameter-tail":["cloudarch"],"player-id":"ignore-player-id","version":"2","player-session-id":"ignore-session-id"}
-     [java] --< replied: {"reply-tail":["user-reserved","ReservedCrunchUser","4efd8f9b-5844-4267-8a15-7a6028ad85f0"],"error-message":"OK","error-code":"OK","reply":"LOGIN_SUCCESS","version":"2"}
 + [X] execute home command
-     [java] --> Received {"method":"player-execute","parameter":"HomeCommand","parameter-tail":["nothing"],"player-id":"user-reserved","version":"2","player-session-id":"4efd8f9b-5844-4267-8a15-7a6028ad85f0"}
-     [java] --< replied: {"error-message":"OK","error-code":"OK","reply":"(0,0,0)","version":"2"}
 + [X]  player-get-region
-     [java] --> Received {"method":"player-get-region","parameter":"","player-id":"user-reserved","version":"2","player-session-id":"4efd8f9b-5844-4267-8a15-7a6028ad85f0"}
-     [java] --< replied: {"error-message":"OK","error-code":"OK","reply":"AARHUS","version":"2"}
 + [X] player-get-position
-     [java] --> Received {"method":"player-get-position","parameter":null,"player-id":"user-reserved","version":"2","player-session-id":"4efd8f9b-5844-4267-8a15-7a6028ad85f0"}
-     [java] --< replied: {"error-message":"OK","error-code":"OK","reply":"(0,0,0)","version":"2"}
 + [X] player-get-short-room-description
-     [java] --> Received {"method":"player-get-short-room-description","parameter":"","player-id":"user-reserved","version":"2","player-session-id":"4efd8f9b-5844-4267-8a15-7a6028ad85f0"}
-     [java] --< replied: {"error-message":"OK","error-code":"OK","reply":"You are standing at the end of a road before a small brick building.","version":"2"}
 + [X] player-get-long-room-description
-     [java] --> Received {"method":"player-get-long-room-description","parameter":"","player-id":"user-reserved","version":"2","player-session-id":"4efd8f9b-5844-4267-8a15-7a6028ad85f0"}
-     [java] --< replied: {"error-message":"OK","error-code":"OK","reply":"You are standing at the end of a road before a small brick building.\nThere are exits in directions:\n  NORTH   EAST   WEST   UP \nYou see other players:\n  [0] ReservedCrunchUser","version":"2"}
 + [X] player-get-exit-set
-     [java] --> Received {"method":"player-get-exit-set","parameter":null,"player-id":"user-reserved","version":"2","player-session-id":"4efd8f9b-5844-4267-8a15-7a6028ad85f0"}
-     [java] --< replied: {"reply-tail":["NORTH","EAST","WEST","UP"],"error-message":"OK","error-code":"OK","reply":"notused","version":"2"}
 + [X] player-move
-     [java] --> Received {"method":"player-move","parameter":"DOWN","player-id":"user-reserved","version":"2","player-session-id":"4efd8f9b-5844-4267-8a15-7a6028ad85f0"}
-     [java] --< replied: {"error-message":"OK","error-code":"OK","reply":"false","version":"2"}
 + [X] logout
-     [java] --> Received {"method":"cave-logout","parameter":"","player-id":"user-reserved","version":"2","player-session-id":"ignore-session-id"}
-     [java] --< replied: {"error-message":"OK","error-code":"OK","reply":"SUCCESS","version":"2
++ [ ] Daemonize
++ [X] Logger
++ [ ] RabbitMQ
++ [ ] Configuration file
