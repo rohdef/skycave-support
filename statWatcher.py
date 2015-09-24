@@ -1,4 +1,3 @@
-#import serial
 import os
 import sys
 import urllib.request
@@ -29,14 +28,10 @@ class CruncherMonster():
                         success = int(statTokens[3])
                         diff = count-success
 
-                        #ser = serial.Serial('/dev/ttyUSB0', 9600)
                         if diff > lastDiff:
                             result = False
-                        #    ser.write(b'\x01')
                         else:
                             result = True
-                        #    ser.write(b'\x00')
-                        #del ser
 
                         lastDiff = diff
 
