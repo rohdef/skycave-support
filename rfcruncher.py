@@ -1,10 +1,11 @@
 import pika
-import socket
-import urllib
 import json
 import string
 import traceback
 import logging
+from testutils import TestRunner, test_error_response
+from testutils import lstr
+from testutils import test_response
 
 ######################################
 #                                    #
@@ -27,76 +28,6 @@ player_session = "ignore-session-id"
 
 method_template = '{{"method":"{0}","parameter":"{1}","parameter-tail":{2},"player-id":"{3}","version":"2","player-session-id":"{4}"}}\n'
 
-class TestError(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
-
-def test_response(logger, response, reply, tail):
-    try:
-        res = json.loads(response.decode("utf-8"))
-        reply_tail = []
-        if 'reply-tail' in res:
-            reply_tail = res['reply-tail']
-            
-        error_code = res['error-code']
-        if error_code != "OK":
-            logger.error("Error in validating error code in the response")
-            logger.error("Expected the error code: OK")
-            logger.error("Actual error code was: %s", error_code)
-            logger.error("The complete output was: %s", response)
-            raise TestError('Test failed')
-
-        json_reply = res['reply']
-        if not reply in json_reply:
-            logger.error("Error in validating the reply part of the response")
-            logger.error("Expected the reply to contain: %s", reply)
-            logger.error("The actual reply was: %s", json_reply)
-            logger.error("The complete output was: %s", response)
-            raise TestError('Test failed')
-
-        for x in tail:
-            if x not in reply_tail:
-                logger.error("Error in validating the tail part part of the response")
-                logger.error("Expected the tail to contain: %s", x)
-                logger.error("The tail was: %s", str(reply_tail))
-                logger.error("The complete output was: %s", response)
-                raise TestError('Test failed')
-    except TestError:
-        raise TestError("Test failed")
-    except:
-        raise
-
-def test_error_response(logger, response, code, message):
-    try:
-        res = json.loads(response.decode("utf-8"))
-            
-        error_code = res['error-code']
-        if not code in error_code:
-            logger.error("Error in the expected error code")
-            logger.error("Expected code was: %s", code)
-            logger.error("Actual code was: %s", error_code)
-            logger.error("Complete response %s", response)
-            raise TestError('Test failed')
-
-        error_message = res['error-message']
-        if not message.upper() in error_message.upper():
-            logger.error("Unexpected error message in the error response")
-            logger.error("Expected to contain: %s", message)
-            logger.error("Actual message was: %s", error_message)
-            logger.error("Complete json is: %s", response)
-            raise TestError('Test failed')
-
-    except TestError:
-        logging.exception("Error during error response handling")
-        raise TestError("Test failed")
-    except:
-        raise
-    
-def lstr(*items):
-    return str(list(items)).replace("'", '"')
-    
 def set_user_details(details):
     global player_id, player_name, player_session
     player_id = details[0]
@@ -123,7 +54,6 @@ class NicePeter():
         self.logger = logging.getLogger("Nice Peter")
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(handler)
-        self.logger.info("Nice Peter initialized")
         
     def test_login(self, client_socket):
         self.logger.info("Logging in")
@@ -215,7 +145,7 @@ class CrashBaby():
     def test_improper_line_ending(self, client_socket):
         self.logger.info("Trying to send improper line eding")
         req = get_method_template("player-execute", "HomeCommand", lstr("nothing"))
-        client_socket.send(req)[:-1]
+        client_socket.send(req[:-1])
 
     def test_two_commands_improper_line_ending(self, client_socket):
         self.logger.info("Trying to send two commands with improper line eding")
@@ -247,7 +177,7 @@ class CrashBaby():
 
     def test_empty_string(self, client_socket):
        self.logger.info("Sending empty string")
-        client_socket.send(b"")
+       client_socket.send(b"")
 
     def test_non_json(self, client_socket):
         self.logger.info("Sending non-json")
@@ -269,83 +199,17 @@ class CrashBaby():
 # EXECUTION                          #
 #                                    #
 ######################################
-class RabbitSocket():
-    def __init__(self):
-        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=host))
-        self.channel = connection.channel()
-
-        result = channel.queue_declare()
-        self.callback_queue = result.method.queue
-        self.channel.basic_consume(self.on_response,
-                                   no_ack=True,
-                                   queue=self.callback_queue)
-
-        self.response = None
-        self.corr_id = None
-
-    def on_response(self, ch, method, props, body):
-        if self.corr_id == props.correlation_id:
-            self.response = body
-
-    def send(bytes):
-        self.response = None
-        self.corr_id = str(uuid.uuid4())
-        
-        self.channel.basic_publish(exchange='',
-                                   routing_key='rpc_queue',
-                                   properties=pika.BasicProperties(
-                                       reply_to=self.callback_queue,
-                                       correlation_id = self.corr_id
-                                   ),
-                                   body=bytes.encode("UTF-8"))
-        pass
-
-    def recv(ignore_this):
-        while self.response == None:
-            self.connection.process_data_events()
-        return self.response
-
-    def close(self):
-        self.connection.close()
-
 class TestSuite:
     def __init__(self, handler, useRabbit=False):
         self.handler = handler
-        self.useRabbit = useRabbit
-
-        self.testTotal = 0
-        self.successTotal = 0
-        self.failureTotal = 0
-        self.errorTotal = 0
-        
-    def runTest(self, test):
-        try:
-            self.testTotal += 1
-            
-            if self.useRabbit:
-                rabbit_handle(test)
-            else:
-                self.sock_handle(test)
-
-            self.successTotal += 1
-        except TestError:
-            self.failureTotal += 1
-        except:
-            self.errorTotal += 1
+        self.runner = TestRunner(handler, host, port, useRabbit)
+        self.logger = logging.getLogger("Test suite")
+        self.logger.setLevel(logging.INFO)
+        self.logger.addHandler(handler)
 
     def get_test_tuple(self):
-        return (self.testTotal, self.successTotal, self.failureTotal, self.errorTotal)
-
-    def sock_handle(self, test):
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((host, port))
-        test(client_socket)
-        client_socket.close()
-    
-    def rabbit_handle(self, test):
-        client_socket = RabbitSocket()
-        test(client_socket)
-
+        return self.runner.get_test_tuple()
+        
     def reset_server(self):
         def conn(client_socket):
             req = get_method_template("cave-login", player_login, lstr(player_pass))
@@ -354,7 +218,7 @@ class TestSuite:
             response = client_socket.recv(4096)
             res = json.loads(response.decode("utf-8"))
             set_user_details(res['reply-tail'])
-        self.sock_handle(conn)
+        self.runner.runTest(conn)
         
         def dis_conn(client_socket):
             req = get_method_template("cave-logout", "", lstr())
@@ -362,43 +226,44 @@ class TestSuite:
             client_socket.send(req)
             response = client_socket.recv(4096)
             reset_user_details()
-        self.sock_handle(dis_conn)
+        self.runner.runTest(dis_conn)
     
     def execute_friendly_crunch(self):
         nice_peter = NicePeter(self.handler)
     
         self.reset_server()
-        self.runTest(nice_peter.test_login)
-        self.runTest(nice_peter.test_homecommand)
-        self.runTest(nice_peter.test_player_get_region)
-        self.runTest(nice_peter.test_player_get_position)
-        self.runTest(nice_peter.test_player_get_short_description)
-        self.runTest(nice_peter.test_player_get_long_description)
-        self.runTest(nice_peter.test_player_get_exit_set)
-        self.runTest(nice_peter.test_player_move)
-        self.runTest(nice_peter.test_logout)
+        self.runner.runTest(nice_peter.test_login)
+        self.runner.runTest(nice_peter.test_homecommand)
+        self.runner.runTest(nice_peter.test_player_get_region)
+        self.runner.runTest(nice_peter.test_player_get_position)
+        self.runner.runTest(nice_peter.test_player_get_short_description)
+        self.runner.runTest(nice_peter.test_player_get_long_description)
+        self.runner.runTest(nice_peter.test_player_get_exit_set)
+        self.runner.runTest(nice_peter.test_player_move)
+        self.runner.runTest(nice_peter.test_logout)
 
     def execute_nasty_crunch(self):
         nice_peter = NicePeter(self.handler)
         crashBaby = CrashBaby(self.handler)
     
         self.reset_server()
-        self.sock_handle(nice_peter.test_login)
+        self.runner.runTest(nice_peter.test_login)
 
-        self.runTest(crashBaby.test_improper_line_ending)
-        self.runTest(crashBaby.test_two_commands_improper_line_ending)
-        self.runTest(crashBaby.test_two_commands_first_has_improper_line_ending)
-        self.runTest(crashBaby.test_two_commands)
-        self.runTest(crashBaby.test_malicious_data)
-        self.runTest(crashBaby.test_empty_string)
-        self.runTest(crashBaby.test_non_json)
-        self.runTest(crashBaby.test_garbage_json)
+        self.runner.runTest(crashBaby.test_improper_line_ending)
+        self.runner.runTest(crashBaby.test_two_commands_improper_line_ending)
+        self.runner.runTest(crashBaby.test_two_commands_first_has_improper_line_ending)
+        self.runner.runTest(crashBaby.test_two_commands)
+        self.runner.runTest(crashBaby.test_malicious_data)
+        self.runner.runTest(crashBaby.test_empty_string)
+        self.runner.runTest(crashBaby.test_non_json)
+        self.runner.runTest(crashBaby.test_garbage_json)
 
-        self.sock_handle(nice_peter.test_logout)
+        self.runner.runTest(nice_peter.test_logout)
 
 if __name__ == "__main__":    
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    handler = logging.FileHandler("rfcruncher.log")
+    #handler = logging.FileHandler("rfcruncher.log")
+    handler = logging.StreamHandler()
     handler.setFormatter(formatter)
 
     testSuite = TestSuite(handler, False)
