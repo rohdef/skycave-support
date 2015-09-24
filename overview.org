@@ -8,7 +8,7 @@
 + [X] player-get-exit-set
 + [X] player-move
 + [X] logout
-+ [ ] Daemonize
++ [X] Daemonize
 + [X] Logger
 + [ ] RabbitMQ
 + [ ] Configuration file
