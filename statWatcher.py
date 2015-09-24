@@ -1,4 +1,4 @@
-import serial
+#import serial
 import os
 import sys
 import urllib.request
@@ -8,19 +8,18 @@ class CruncherMonster():
         pass
 
     def crunch(self):
+        result = False
         statsUrl = "http://users-cs.au.dk/baerbak/c/cloud/current-score-operations-socket.txt"
 
         try:
             with open("/opt/lastDiffFile", "r+") as lastDiffFile:
                 fileContents = lastDiffFile.read()
                 fileContentsList = fileContents.split("\n")
-                del fileContents
 
                 lastDiff = int(fileContentsList[0])
 
                 statsResponse = urllib.request.urlopen(statsUrl)
                 stats = statsResponse.read().decode("utf-8")
-                del statsResponse
 
                 for stat in stats.split("\n"):
                     if stat.startswith("CSS 25"):
@@ -31,29 +30,24 @@ class CruncherMonster():
                         diff = count-success
 
                         #ser = serial.Serial('/dev/ttyUSB0', 9600)
-                        #if diff > lastDiff:
+                        if diff > lastDiff:
+                            result = False
                         #    ser.write(b'\x01')
-                        #else:
+                        else:
+                            result = True
                         #    ser.write(b'\x00')
                         #del ser
 
                         lastDiff = diff
 
-                del stat
-                del statTokens
-                del count
-                del success
-                del diff
-
                 #add
                 lastDiffFile.seek(0,0)
                 lastDiffFile.truncate()
                 lastDiffFile.write(str(lastDiff) + "\n" + "\n".join(fileContentsList[:5]))
-                del lastDiff
-            del lastDiffFile
         except:
             print("Unexpected error:", sys.exc_info()[0])
-            pass
+            raise
+        return result
 
 if __name__ == "__main__":
     cruncherMonster = CruncherMonster()

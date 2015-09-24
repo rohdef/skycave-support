@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import sys
 import time
 import traceback
@@ -6,13 +7,31 @@ import rfcruncher
 import statWatcher
 from daemon import runner
 
-class Daemon():
+class DummyHandler():
     def __init__(self):
+        pass
+
+    def cruncherMonster(self, wasSuccess=True):
+        if wasSuccess:
+            logger.info("CrunchMoster was successful")
+        else:
+            logger.error("CrunchMonster failed")
+
+    def rfcrunchStatus(self, testTotal, success, fails, errors):
+        logger.info(" *** We ran {0} tests, {1} of them was successes, {2} was failures and {3} made errors. *** ".format(testTotal, success, fails, errors))
+
+    def criticalFail(self, message):
+        logger.error("Critical failure occured with message: {0}".format(message))
+
+class Daemon():
+    def __init__(self, crunchHandler):
         # Sleep 60 secs * 5 mins
         self.sleep_time = 60*5
         # Crunch the cruncher frequency
-        self.cruncher_frequency = 60*60/self.sleep_time
+        self.cruncher_frequency = 30*60/self.sleep_time
         self.counter = 0
+
+        self.crunchHandler = crunchHandler
 
         # Daemon config
         self.stdin_path = '/dev/null'
@@ -25,15 +44,28 @@ class Daemon():
         logger.info("Starting the RF Cruncher daemon")
 
         while True:
+            logger.info(" *** Running tests *** ")
             if self.counter%self.cruncher_frequency == 0:
+                self.counter = 0
+                logger.info("*** Time for cruncher ***")
                 # Crunch the cruncher
-                pass
+                try:
+                    cruncherMonster = statWatcher.CruncherMonster()
+                    self.crunchHandler.cruncherMonster(cruncherMonster.crunch())
+                except:
+                    logger.exception("Cruncher Monster stopped due to an error")
+                    self.crunchHandler.cruncherMonster(False)
 
             try:
-                rfcruncher.execute_friendly_crunch(handler)
-                rfcruncher.execute_nasty_crunch(handler)
+                testSuite = rfcruncher.TestSuite(handler, False)
+
+                testSuite.execute_friendly_crunch()
+                testSuite.execute_nasty_crunch()
+
+                self.crunchHandler.rfcrunchStatus(*testSuite.get_test_tuple())
             except:
-                logger.error("Crunching stopped due to error in the tests")
+                logger.exception("Crunching stopped due to error in the tests")
+                self.crunchHandler.criticalFail("Crunching of tests stopped due to critical failure")
 
             self.counter += 1
             time.sleep(self.sleep_time)
@@ -42,20 +74,13 @@ class Daemon():
 logger = logging.getLogger("rf_cruncher_daemon")
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler = logging.FileHandler("/var/log/rfcruncher.log")
+handler = logging.handlers.RotatingFileHandler("/var/log/rfcruncher.log", maxBytes=1048576, backupCount=0)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-if __name__ == "__main__":
-    rfcruncher.execute_friendly_crunch(handler)
-    rfcruncher.execute_nasty_crunch(handler)
-
-    cruncherMonster = statWatcher.CruncherMonster()
-    cruncherMonster.crunch()
-else:
-    daemon = Daemon()
-    daemon.run()
-    daemon_runner = runner.DaemonRunner(daemon)
-    #This ensures that the logger file handle does not get closed during daemonization
-    daemon_runner.daemon_context.files_preserve=[handler.stream]
-    daemon_runner.do_action()
+daemon = Daemon(DummyHandler())
+daemon.run()
+daemon_runner = runner.DaemonRunner(daemon)
+#This ensures that the logger file handle does not get closed during daemonization
+daemon_runner.daemon_context.files_preserve=[handler.stream]
+daemon_runner.do_action()
