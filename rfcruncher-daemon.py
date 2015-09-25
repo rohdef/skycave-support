@@ -5,6 +5,7 @@ import time
 import traceback
 import rfcruncher
 import statWatcher
+import ledreactor
 from daemon import runner
 
 class DummyHandler():
@@ -78,8 +79,7 @@ handler = logging.handlers.RotatingFileHandler("/var/log/rfcruncher.log", maxByt
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-daemon = Daemon(DummyHandler())
-daemon.run()
+daemon = Daemon(ledreactor.LedHandler(logger))
 daemon_runner = runner.DaemonRunner(daemon)
 #This ensures that the logger file handle does not get closed during daemonization
 daemon_runner.daemon_context.files_preserve=[handler.stream]
